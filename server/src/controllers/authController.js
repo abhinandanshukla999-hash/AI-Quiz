@@ -99,7 +99,7 @@ export async function login(req, res) {
 
     // Look up user by email
     const [rows] = await pool.query(
-      'SELECT id, name, email, password_hash, DATE_FORMAT(date_of_birth, "%Y-%m-%d") AS date_of_birth, avatar_url, created_at FROM users WHERE email = ?',
+      "SELECT id, name, email, password_hash, DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth, avatar_url, created_at FROM users WHERE email = ?",
       [cleanEmail]
     );
 
@@ -168,7 +168,7 @@ export async function forgotPassword(req, res) {
 
     // Look up user by email
     const [rows] = await pool.query(
-      'SELECT id, email, DATE_FORMAT(date_of_birth, "%Y-%m-%d") AS date_of_birth FROM users WHERE email = ?',
+      "SELECT id, email, DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth FROM users WHERE email = ?",
       [cleanEmail]
     );
 
@@ -225,7 +225,7 @@ export async function forgotPassword(req, res) {
 export async function getCurrentUser(req, res) {
   try {
     const [rows] = await pool.query(
-      'SELECT id, name, email, DATE_FORMAT(date_of_birth, "%Y-%m-%d") AS date_of_birth, avatar_url, created_at FROM users WHERE id = ?',
+      "SELECT id, name, email, DATE_FORMAT(date_of_birth, '%Y-%m-%d') AS date_of_birth, avatar_url, created_at FROM users WHERE id = ?",
       [req.user.id]
     );
 

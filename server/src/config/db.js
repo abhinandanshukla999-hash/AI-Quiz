@@ -9,7 +9,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbConfig = {
+let dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306', 10),
   user: process.env.DB_USER || 'root',
@@ -21,6 +21,32 @@ const dbConfig = {
   decimalNumbers: true
 };
 
+// Check if a full connection URL is passed via DATABASE_URL, MYSQL_URL, or DB_HOST
+const rawHostOrUrl = process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.DB_HOST || '';
+if (rawHostOrUrl.startsWith('mysql://') || rawHostOrUrl.startsWith('mysqls://')) {
+  try {
+    const parsed = new URL(rawHostOrUrl);
+    dbConfig.host = parsed.hostname;
+    if (parsed.port) dbConfig.port = parseInt(parsed.port, 10);
+    if (parsed.username) dbConfig.user = decodeURIComponent(parsed.username);
+    if (parsed.password) dbConfig.password = decodeURIComponent(parsed.password);
+    if (parsed.pathname && parsed.pathname.length > 1) {
+      dbConfig.database = decodeURIComponent(parsed.pathname.slice(1));
+    }
+    dbConfig.ssl = { rejectUnauthorized: false };
+  } catch (err) {
+    console.warn('⚠️ Could not parse MySQL connection URL, using individual config:', err.message);
+  }
+}
+
+// Enable SSL if explicitly configured or connecting to a remote/cloud MySQL host (e.g., Aiven, TiDB, Render)
+if (!dbConfig.ssl) {
+  const isCloudHost = dbConfig.host !== 'localhost' && dbConfig.host !== '127.0.0.1' && !dbConfig.host.startsWith('192.168.');
+  if (process.env.DB_SSL === 'true' || (isCloudHost && process.env.DB_SSL !== 'false')) {
+    dbConfig.ssl = { rejectUnauthorized: false };
+  }
+}
+
 // Create the connection pool
 export const pool = mysql.createPool(dbConfig);
 
@@ -30,16 +56,23 @@ export const pool = mysql.createPool(dbConfig);
  */
 export async function initDatabase() {
   try {
-    // 1. First ensure the target database exists using an unselected connection
-    const setupConnection = await mysql.createConnection({
-      host: dbConfig.host,
-      port: dbConfig.port,
-      user: dbConfig.user,
-      password: dbConfig.password
-    });
-
-    await setupConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
-    await setupConnection.end();
+    // 1. First attempt to ensure the target database exists if privileges allow (e.g. local MySQL)
+    try {
+      const setupConfig = {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        user: dbConfig.user,
+        password: dbConfig.password,
+        ...(dbConfig.ssl ? { ssl: dbConfig.ssl } : {})
+      };
+      const setupConnection = await mysql.createConnection(setupConfig);
+      await setupConnection.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
+      await setupConnection.end();
+    } catch (createDbErr) {
+      // In managed cloud databases (Aiven, TiDB, etc.), users typically do not have CREATE DATABASE permissions
+      // and are assigned a pre-existing database (e.g. defaultdb). We safely continue.
+      console.log(`ℹ️ Notice: Managed database detected (${createDbErr.code || createDbErr.message}). Connected directly to database "${dbConfig.database}".`);
+    }
 
     // 2. Read schema.sql from server root
     const schemaPath = path.resolve(__dirname, '../../schema.sql');
@@ -54,7 +87,15 @@ export async function initDatabase() {
       const statements = cleanSql
         .split(';')
         .map(stmt => stmt.trim())
-        .filter(stmt => stmt.length > 0);
+        .filter(stmt => {
+          if (!stmt) return false;
+          const upper = stmt.toUpperCase();
+          // Filter out CREATE DATABASE and USE statements so schema installs directly on the configured database
+          if (upper.startsWith('CREATE DATABASE') || upper.startsWith('USE ')) {
+            return false;
+          }
+          return true;
+        });
 
       const connection = await pool.getConnection();
       try {
