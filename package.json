@@ -1,0 +1,10 @@
+{
+  "name": "ai-notes-quiz-platform",
+  "version": "1.0.0",
+  "description": "AI Notes-to-Question Practice Platform with Gemini 2.5 Flash, MySQL, Express, and React 19",
+  "private": true,
+  "scripts": {
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev"
+  }
+}
