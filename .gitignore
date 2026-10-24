@@ -9,9 +9,6 @@ yarn-error.log*
 .env*.local
 server/.env
 client/.env
-client/.env.example
-
-server/.env.example
 
 
 # Build outputs

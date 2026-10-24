@@ -1,7 +1,16 @@
 import axios from 'axios';
 
-// Default to Vite proxy (/api) if VITE_API_BASE_URL is not explicitly provided
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Normalize API Base URL:
+// Automatically handles cases with or without trailing slash and with or without '/api'
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (!envUrl) return '/api';
+  const trimmed = envUrl.trim().replace(/\/+$/, '');
+  if (trimmed.endsWith('/api')) return trimmed;
+  return `${trimmed}/api`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

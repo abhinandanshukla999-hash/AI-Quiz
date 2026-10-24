@@ -10,17 +10,28 @@ import { generalApiLimiter } from './src/middleware/rateLimiter.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const allowedOrigins = rawClientUrl.split(',').map((url) => url.trim().replace(/\/+$/, ''));
 
 // Security & Cross-Origin Configuration
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, postman) or matching CLIENT_URL / localhost
-      if (!origin || origin.startsWith('http://localhost') || origin === CLIENT_URL) {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const cleanOrigin = origin.replace(/\/+$/, '');
+      if (
+        cleanOrigin.startsWith('http://localhost') ||
+        cleanOrigin.startsWith('http://127.0.0.1') ||
+        allowedOrigins.includes(cleanOrigin) ||
+        allowedOrigins.includes('*') ||
+        cleanOrigin.endsWith('.vercel.app')
+      ) {
         callback(null, true);
       } else {
-        callback(null, true); // Dev-friendly fallback
+        // Fallback to allow connection
+        callback(null, true);
       }
     },
     credentials: true,
@@ -35,6 +46,15 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Apply general rate limiter
 app.use('/api', generalApiLimiter);
+
+// Root endpoint for Render verification
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    service: 'AI Notes-to-Question Practice Platform Backend API',
+    health: '/api/health'
+  });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

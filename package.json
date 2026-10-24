@@ -4,6 +4,9 @@
   "description": "AI Notes-to-Question Practice Platform with Gemini 2.5 Flash, MySQL, Express, and React 19",
   "private": true,
   "scripts": {
+    "start": "node server/server.js",
+    "build:client": "cd client && npm install && npm run build",
+    "build:server": "cd server && npm install",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev"
   }
